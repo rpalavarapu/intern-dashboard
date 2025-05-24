@@ -9,9 +9,13 @@ from gitlab_methods import (
     update_project_access_level,
 )
 import csv
+from dotenv import load_dotenv
+import os
+
+load_dotenv() 
 
 # Configurations
-ACCESS_TOKEN = "glpat-ySGQMMC8sdPESB2yWU2z"  # access token
+ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')  # access token
 
 
 def main():
