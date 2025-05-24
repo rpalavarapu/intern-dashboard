@@ -1,0 +1,25 @@
+gitlab:
+  url: "https://code.swecha.org"
+  private_token: "your-private-token"
+  project_ids: [your-project-id]  # Replace with your actual project ID 
+  team_members:
+    - id: 00000  # GitLab user ID
+      name: "name"
+    - id: 00000
+      name: " name"
+    - id: 00000
+      name: "name"
+    - id: 00000 # GitLab user ID
+      name: "name"
+    - id: 00000
+      name: "name"
+    - id: 00000
+      name: "name"
+
+
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  sender_email: "example@gmail.com"
+  sender_password: "xxxx xxxx xxxx xxxx"
+  recipient_email: "example@gmail.com"
