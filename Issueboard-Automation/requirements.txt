@@ -1,3 +1,0 @@
-python-gitlab
-slack-sdk
-pyyaml
