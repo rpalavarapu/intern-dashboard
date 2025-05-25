@@ -67,3 +67,20 @@ def add_members_to_group(headers, group_id, filename, access_level=30):
                     add_response.json(),
                     add_response.status_code,
                 )
+
+
+def update_access_level(headers, group_id, filename, level):
+    with open(filename, newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            username = row["username"].strip()
+            user_id = get_user_id(headers, username)
+            response = requests.put(
+                f"{GITLAB_URL}/api/v4/projects/{group_id}/members/",
+                headers=headers,
+                data={"user_id": user_id, "access_level": level},
+            )
+            if response.status_code == 200:
+                print("Updated access level.")
+            else:
+                print("Failed to update.", response.json())
