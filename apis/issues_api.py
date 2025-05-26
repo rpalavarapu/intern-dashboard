@@ -1,83 +1,85 @@
 import requests
 
+GITLAB_URL = "https://code.swecha.org/api/v4"
+
+
 def get_gitlab_headers(token):
     return {"PRIVATE-TOKEN": token}
 
-def fetch_project_info(api_url, project_id, headers):
-    url = f"{api_url}/projects/{project_id}"
-    return requests.get(url, headers=headers).json()
 
-def fetch_project_members(api_url, project_id, headers):
-    members = []
-    page = 1
-    while True:
-        url = f"{api_url}/projects/{project_id}/members/all?per_page=100&page={page}"
-        res = requests.get(url, headers=headers)
-        if res.status_code != 200:
-            break
-        data = res.json()
-        if not data:
-            break
-        members.extend(data)
-        if len(data) < 100:
-            break
-        page += 1
-    return members
+def fetch_project_info(headers, group_id):
+    url = f"{GITLAB_URL}/projects/{group_id}"
+    response = requests.get(url, headers=headers)
+    return response.json()
 
-def fetch_issues(api_url, project_id, user_id, since, headers):
-    url = f"{api_url}/projects/{project_id}/issues"
+
+def fetch_issues(headers, group_id, user_id, since):
+    url = f"{GITLAB_URL}/projects/{group_id}/issues"
     params = {
         "assignee_id": user_id,
         "updated_after": since,
         "state": "all",
-        "per_page": 100
+        "per_page": 100,
     }
-    return requests.get(url, headers=headers, params=params).json()
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
 
-def fetch_issues_by_username(api_url, project_id, username, since, headers):
-    url = f"{api_url}/projects/{project_id}/issues"
+
+def fetch_issues_by_username(headers, group_id, username, since):
+    url = f"{GITLAB_URL}/projects/{group_id}/issues"
     params = {
         "assignee_username": username,
         "updated_after": since,
         "state": "all",
-        "per_page": 100
+        "per_page": 100,
     }
-    return requests.get(url, headers=headers, params=params).json()
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
 
-def fetch_authored_issues(api_url, project_id, user_id, since, headers):
-    url = f"{api_url}/projects/{project_id}/issues"
+
+def fetch_authored_issues(headers, group_id, user_id, since):
+    url = f"{GITLAB_URL}/projects/{group_id}/issues"
     params = {
         "author_id": user_id,
         "updated_after": since,
         "state": "all",
-        "per_page": 100
+        "per_page": 100,
     }
-    return requests.get(url, headers=headers, params=params).json()
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
 
-def fetch_all_project_issues(api_url, project_id, since, headers):
+
+def fetch_all_project_issues(headers, group_id, since):
     all_issues = []
     page = 1
+    per_page = 100
+
     while True:
-        url = f"{api_url}/projects/{project_id}/issues"
         params = {
             "updated_after": since,
             "state": "all",
-            "per_page": 100,
-            "page": page
+            "per_page": per_page,
+            "page": page,
         }
-        res = requests.get(url, headers=headers, params=params)
-        if res.status_code != 200:
+        url = f"{GITLAB_URL}/projects/{group_id}/issues"
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            print(f"Error {response.status_code}: {response.text}")
             break
-        data = res.json()
+
+        data = response.json()
         if not data:
             break
+
         all_issues.extend(data)
-        if len(data) < 100:
-            break
         page += 1
+
     return all_issues
 
-def fetch_notes(api_url, project_id, issue_iid, headers):
-    url = f"{api_url}/projects/{project_id}/issues/{issue_iid}/notes"
-    return requests.get(url, headers=headers).json()
+
+def fetch_notes(headers, group_id, issue_iid):
+    url = f"{GITLAB_URL}/projects/{group_id}/issues/{issue_iid}/notes"
+    response = requests.get(url, headers=headers)
+    return response.json()
 
