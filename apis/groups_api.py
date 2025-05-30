@@ -1,86 +1,69 @@
-import requests
+# apis/groups_api.py
+from utils.fetch import make_api_request
+from utils.auth import get_gitlab_headers
+from urllib.parse import quote
 import csv
-
-from apis.users_api import get_user_id
+from users_api import get_user_id
 
 GITLAB_URL = "https://code.swecha.org"
 
+def get_all_users_from_group(group_id):
+    url_base = f"{GITLAB_URL}/api/v4/groups/{group_id}/members/all"
+    return make_api_request(url_base, get_gitlab_headers())
 
-def get_group_id(headers, params):
-    group_response = requests.get(
-        f"{GITLAB_URL}/api/v4/groups", headers=headers, params=params
-    )
-    if group_response.status_code >= 401:
-        print("Failed to get group id:", group_response.json())
-        exit()
-    group_id = group_response.json()[0]["id"]
-    return group_id
-
-
-def get_all_users_from_group(headers, group_id):
-    members = []
-    page = 1
-    per_page = 100  # GitLab allows up to 100 per page
-
-    while True:
-        params = {"page": page, "per_page": per_page}
-        response = requests.get(
-            f"https://code.swecha.org/api/v4/groups/{group_id}/members/all",
-            headers=headers,
-            params=params,
-        )
-
-        if response.status_code != 200:
-            print(f"Error {response.status_code}: {response.text}")
-            break
-
-        data = response.json()
-        if not data:
-            break  # No more data
-
-        members.extend(data)
-        page += 1
-    return members
-
-
-def add_members_to_group(headers, group_id, filename, access_level=30):
+def add_members_to_group(group_id, filename, access_level=30):
     with open(filename, newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             username = row["username"].strip()
-            user_id = get_user_id(headers, username)
-            if user_id is None:
+            user_id = get_user_id(username)
+            if not user_id:
                 continue
+            url = f"{GITLAB_URL}/api/v4/groups/{group_id}/members"
+            data = {"user_id": user_id, "access_level": access_level}
+            response = make_api_request(url, get_gitlab_headers(), data=data)
+            if response:
+                print(f"✅ Added '{username}' to the group.")
 
-            add_response = requests.post(
-                f"{GITLAB_URL}/api/v4/groups/{group_id}/members",
-                headers=headers,
-                data={"user_id": user_id, "access_level": access_level},
-            )
-            if add_response.status_code == 201:
-                print(f"Added '{username}' to the group.")
-            elif add_response.status_code == 409:
-                print(f"'{username}' already exists in the group.")
-            else:
-                print(
-                    f"Failed to add '{username}':",
-                    add_response.json(),
-                    add_response.status_code,
-                )
-
-
-def update_access_level(headers, group_id, filename, level):
+def update_access_level(group_id, filename, level):
     with open(filename, newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             username = row["username"].strip()
-            user_id = get_user_id(headers, username)
-            response = requests.put(
-                f"{GITLAB_URL}/api/v4/projects/{group_id}/members/",
-                headers=headers,
-                data={"user_id": user_id, "access_level": level},
-            )
-            if response.status_code == 200:
-                print("Updated access level.")
-            else:
-                print("Failed to update.", response.json())
+            user_id = get_user_id(username)
+            if not user_id:
+                continue
+            url = f"{GITLAB_URL}/api/v4/groups/{group_id}/members/{user_id}"
+            data = {"access_level": level}
+            response = make_api_request(url, get_gitlab_headers(), data=data)
+            if response:
+                print(f"🔄 Updated access level for '{username}'")
+
+def run_groups():
+    print("\n👥 Manage GitLab Groups")
+    group_id = input("📥 Enter Group ID: ").strip()
+    print("1. List Members")
+    print("2. Add Members from CSV")
+    print("3. Update Access Level")
+    choice = input("Enter choice: ").strip()
+
+    if choice == "1":
+        members = get_all_users_from_group(group_id)
+        if members:
+            print(f"\n👥 Members in group {group_id}:")
+            for member in members:
+                print(f"- {member['name']} ({member['username']})")
+        else:
+            print("❌ No members found.")
+
+    elif choice == "2":
+        filename = input("📄 Enter CSV filename: ").strip()
+        add_members_to_group(group_id, filename)
+    
+    elif choice == "3":
+        filename = input("📄 Enter CSV filename: ").strip()
+        level = int(input("🔒 Enter access level (e.g., 30 for Developer): "))
+        update_access_level(group_id, filename, level)
+
+    else:
+        print("❌ Invalid choice.")
