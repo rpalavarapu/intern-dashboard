@@ -1,85 +1,77 @@
-import requests
+# apis/issues_api.py
+from utils.fetch import make_api_request
+from datetime import datetime, timedelta
+import os
 
 GITLAB_URL = "https://code.swecha.org/api/v4"
 
+def fetch_project_members(headers, project_id):
+    url_base = f"{GITLAB_URL}/projects/{project_id}/members/all"
+    return make_api_request(url_base, headers)
 
-def get_gitlab_headers(token):
-    return {"PRIVATE-TOKEN": token}
-
-
-def fetch_project_info(headers, group_id):
-    url = f"{GITLAB_URL}/projects/{group_id}"
-    response = requests.get(url, headers=headers)
-    return response.json()
-
-
-def fetch_issues(headers, group_id, user_id, since):
-    url = f"{GITLAB_URL}/projects/{group_id}/issues"
-    params = {
+def fetch_issues_by_assignee(headers, project_id, user_id, since):
+    url_base = f"{GITLAB_URL}/projects/{project_id}/issues"
+    extra_params = {
         "assignee_id": user_id,
         "updated_after": since,
         "state": "all",
-        "per_page": 100,
+        "per_page": 100
     }
-    response = requests.get(url, headers=headers, params=params)
-    return response.json()
+    return make_api_request(url_base, headers, params=extra_params)
 
-
-def fetch_issues_by_username(headers, group_id, username, since):
-    url = f"{GITLAB_URL}/projects/{group_id}/issues"
-    params = {
+def fetch_issues_by_username(headers, project_id, username, since):
+    url_base = f"{GITLAB_URL}/projects/{project_id}/issues"
+    extra_params = {
         "assignee_username": username,
         "updated_after": since,
         "state": "all",
-        "per_page": 100,
+        "per_page": 100
     }
-    response = requests.get(url, headers=headers, params=params)
-    return response.json()
+    return make_api_request(url_base, headers, params=extra_params)
 
-
-def fetch_authored_issues(headers, group_id, user_id, since):
-    url = f"{GITLAB_URL}/projects/{group_id}/issues"
-    params = {
+def fetch_authored_issues(headers, project_id, user_id, since):
+    url_base = f"{GITLAB_URL}/projects/{project_id}/issues"
+    extra_params = {
         "author_id": user_id,
         "updated_after": since,
         "state": "all",
-        "per_page": 100,
+        "per_page": 100
     }
-    response = requests.get(url, headers=headers, params=params)
-    return response.json()
+    return make_api_request(url_base, headers, params=extra_params)
 
+def fetch_all_project_issues(headers, project_id, since):
+    url_base = f"{GITLAB_URL}/projects/{project_id}/issues"
+    extra_params = {
+        "updated_after": since,
+        "state": "all",
+        "per_page": 100
+    }
+    return make_api_request(url_base, headers, params=extra_params)
 
-def fetch_all_project_issues(headers, group_id, since):
-    all_issues = []
-    page = 1
-    per_page = 100
+def fetch_notes(headers, project_id, issue_iid):
+    url = f"{GITLAB_URL}/projects/{project_id}/issues/{issue_iid}/notes"
+    return make_api_request(url, headers)
 
-    while True:
-        params = {
-            "updated_after": since,
-            "state": "all",
-            "per_page": per_page,
-            "page": page,
-        }
-        url = f"{GITLAB_URL}/projects/{group_id}/issues"
-        response = requests.get(url, headers=headers, params=params)
+def run_issues():
+    print("\n📊 Fetching GitLab Issues...")
+    project_id = input("📥 Enter Project ID: ").strip()
+    days_input = input("📆 Days back to check issues (default 7): ").strip()
+    days = int(days_input) if days_input else 7
+    since = (datetime.now() - timedelta(days=days)).isoformat()
 
-        if response.status_code != 200:
-            print(f"Error {response.status_code}: {response.text}")
-            break
+    headers = {"PRIVATE-TOKEN": os.getenv("GITLAB_TOKEN")}
+    
+    all_issues = fetch_all_project_issues(headers, project_id, since)
+    if not all_issues:
+        print("❌ No issues found.")
+        return
 
-        data = response.json()
-        if not data:
-            break
-
-        all_issues.extend(data)
-        page += 1
-
-    return all_issues
-
-
-def fetch_notes(headers, group_id, issue_iid):
-    url = f"{GITLAB_URL}/projects/{group_id}/issues/{issue_iid}/notes"
-    response = requests.get(url, headers=headers)
-    return response.json()
-
+    print(f"\n🔍 Found {len(all_issues)} issues in the last {days} day(s):")
+    for issue in all_issues[:5]:  # Show summary of first 5 issues
+        title = issue['title']
+        author = issue['author']['name'] if 'author' in issue else 'Unknown'
+        assignees = ', '.join([a['name'] for a in issue.get('assignees', [])])
+        print(f"📌 {title}")
+        print(f"   👤 Author: {author}")
+        print(f"   🧑‍🤝‍🧑 Assignees: {assignees or 'None'}")
+        print(f"   🔖 Labels: {', '.join(issue.get('labels', []))}")
