@@ -9,7 +9,7 @@ MODE_MAP = {
     '3': ('issues_api', 'run_issues'),
     '4': ('merge_api', 'run_merge_requests'),
     '5': ('projects_api', 'run_check_file'),
-    '6': ('users_api', 'run_get_user_id'),
+    '6': ('users_api', 'run_users'),
 }
 
 def show_menu():
