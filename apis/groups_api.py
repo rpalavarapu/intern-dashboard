@@ -3,7 +3,10 @@ from utils.fetch import make_api_request
 from utils.auth import get_gitlab_headers
 from urllib.parse import quote
 import csv
-from users_api import get_user_id
+from apis.users_api import get_user_id
+
+
+
 
 GITLAB_URL = "https://code.swecha.org"
 
@@ -41,7 +44,7 @@ def update_access_level(group_id, filename, level):
 
 def run_groups():
     print("\n👥 Manage GitLab Groups")
-    group_id = input("📥 Enter Group ID: ").strip()
+    group_id= input("📥 Enter Group ID: ").strip()
     print("1. List Members")
     print("2. Add Members from CSV")
     print("3. Update Access Level")
