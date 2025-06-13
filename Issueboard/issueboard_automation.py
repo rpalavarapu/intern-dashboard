@@ -1,9 +1,12 @@
+
 import os
 import re
 from datetime import datetime, timedelta, timezone
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+
 from dotenv import load_dotenv
 
 from apis.issues_api import (
@@ -12,7 +15,7 @@ from apis.issues_api import (
     fetch_all_project_issues, fetch_notes
 )
 
-from formatter import generate_summary
+from utils.formatter import generate_summary
 
 load_dotenv()
 
@@ -45,9 +48,13 @@ def summarize_issue(issue):
     title = issue.get("title", "")
     labels = ", ".join(issue.get("labels", []))
     status = issue.get("status", "")
+    
+    # Safely default to empty list if notes is None
+    notes = issue.get("notes") or []
+
     comments = "\n".join([
         f"{note.get('author', {}).get('username', 'user')} said: {note.get('body', '')}"
-        for note in issue.get("notes", [])
+        for note in notes
     ])
 
     full_context = f"Title: {title}\nLabels: {labels}\nStatus: {status}\nComments:\n{comments}"
@@ -60,6 +67,7 @@ def summarize_issue(issue):
         return f"Summary: {clean_text(comments[:200])}..."
     else:
         return "No significant updates."
+
 
 def enrich_issue(issue, project_name, headers):
     issue['project'] = project_name

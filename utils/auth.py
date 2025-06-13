@@ -2,10 +2,11 @@
 from dotenv import load_dotenv
 import os
 
+
 def get_gitlab_headers():
-    load_dotenv()
     token = os.getenv("GITLAB_TOKEN")
     return {"PRIVATE-TOKEN": token}
+
 
 def get_base_url():
     load_dotenv()

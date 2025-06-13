@@ -11,8 +11,19 @@ from apis.users_api import get_user_id
 GITLAB_URL = "https://code.swecha.org"
 
 def get_all_users_from_group(group_id):
-    url_base = f"{GITLAB_URL}/api/v4/groups/{group_id}/members/all"
-    return make_api_request(url_base, get_gitlab_headers())
+    all_members = []
+    page = 1
+    per_page = 100  # Max GitLab allows
+    while True:
+        url = f"{GITLAB_URL}/api/v4/groups/{group_id}/members/all?page={page}&per_page={per_page}"
+        response = make_api_request(url, get_gitlab_headers())
+        if not response:
+            break
+        all_members.extend(response)
+        if len(response) < per_page:
+            break  # No more pages
+        page += 1
+    return all_members
 
 def add_members_to_group(group_id, filename, access_level=30):
     with open(filename, newline="") as csvfile:

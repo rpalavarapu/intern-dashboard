@@ -2,8 +2,35 @@
 from utils.fetch import make_api_request
 from datetime import datetime, timedelta
 import os
+import requests
 
 GITLAB_URL = "https://code.swecha.org/api/v4"
+
+
+
+def fetch_project_info(headers, project_id):
+    url = f"https://code.swecha.org/api/v4/projects/{project_id}"
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Failed to fetch project info: {e}")
+        return None
+
+
+def fetch_issues(headers, project_id, user_id, since):
+    url = f"https://code.swecha.org/api/v4/projects/{project_id}/issues"
+    params = {
+        "updated_after": since,
+        "per_page": 100,
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if not response.ok:
+        print(f"⚠️ Failed to fetch issues for user {user_id}: {response.status_code}")
+        return []
+    issues = response.json()
+    return [issue for issue in issues if issue.get("assignee", {}).get("id") == user_id]
 
 def fetch_project_members(headers, project_id):
     url_base = f"{GITLAB_URL}/projects/{project_id}/members/all"

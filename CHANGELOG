@@ -1,0 +1,27 @@
+
+
+
+##Added 
+
+- Streamlit UI for Gitlab Wrapper Mode 1 
+- Streamlit UI for Gitlab Wrapper Mode 2
+- Streamlit UI for Gitlab Wrapper Mode 3
+- Streamlit UI for Gitlab Wrapper Mode 4 
+- Streamlit UI for Gitlab Wrapper Mode 5 
+- Streamlit UI for Gitlab Wrapper Mode 6 
+- New feature to users_api.py
+- New output format for Mode 3. 
+
+##Fixed 
+
+- Bugs in Main.py function calls. 
+- Bugs in commits_api.py 
+- Bugs in groups_api.py
+- Bugs in projects_api.py 
+
+
+##Changed 
+
+- Utils/formatter.py 
+- Issueboard/issueboard_automation.py 
+

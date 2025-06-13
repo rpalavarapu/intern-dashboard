@@ -1,8 +1,22 @@
 from urllib.parse import quote
 from utils.fetch import make_api_request
 import os
+from utils.fetch import fetch_paginated_data
+from utils.auth import get_gitlab_headers
 
 GITLAB_API_URL = "https://code.swecha.org/api/v4"
+
+# apis/projects_api.py
+
+
+
+GITLAB_API_URL = "https://code.swecha.org/api/v4"
+
+def get_projects(group_id_or_path):
+    url = f"{GITLAB_API_URL}/groups/{group_id_or_path}/projects"
+    headers = get_gitlab_headers()
+    return fetch_paginated_data(url, headers)
+
 
 def get_project_id(project_path):
     encoded_path = quote(project_path, safe="")
