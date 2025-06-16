@@ -423,12 +423,11 @@ def get_project_activity(project_id, project_name, since_date, valid_names):
             page += 1
 
     except Exception as e:
-        print(f"Error processing project {project_name}: {str(e)}")
-    # Continue processing other projects    
+        if debug_mode:
+            st.write(f"Error processing commits for project {project_name}: {e}")
     
-    
-        
-        # Get issues
+    # Get issues - MOVED OUTSIDE commits try block
+    try:
         issues_url = f"{GITLAB_URL}/api/v4/projects/{project_id}/issues"
         issues_params = {"created_after": since_date.isoformat(), "per_page": 100, "state": "all"}
         issues_result = safe_api_request(issues_url, headers, issues_params)
@@ -450,6 +449,10 @@ def get_project_activity(project_id, project_name, since_date, valid_names):
                                 stats[author]["last_activity"] = dt
                         except Exception:
                             pass
+    
+    except Exception as e:
+        if debug_mode:
+            st.write(f"Error processing issues for project {project_name}: {e}")
     
     except Exception as e:
         if debug_mode:
@@ -761,7 +764,7 @@ def main():
         status_text = st.empty()
         
         # Limit the number of projects to analyze to avoid timeout
-        max_projects = min(len(projects), 150)  # Limit to 150 most recent projects
+        max_projects = min(len(projects), 150)  # Limit to 50 most recent projects
         projects_to_analyze = projects[:max_projects]
         
         if len(projects) > max_projects:
