@@ -761,7 +761,7 @@ def main():
         status_text = st.empty()
         
         # Limit the number of projects to analyze to avoid timeout
-        max_projects = min(len(projects), 100)  # Limit to 50 most recent projects
+        max_projects = min(len(projects), 150)  # Limit to 150 most recent projects
         projects_to_analyze = projects[:max_projects]
         
         if len(projects) > max_projects:
@@ -983,7 +983,7 @@ def main():
             now_ist = datetime.now(LOCAL_TIMEZONE)
             days_since = (now_ist.date() - ist_dt.date()).days
             if days_since == 0:
-                days_since_activity = "Today"
+                days_since_activity = "0 days ago"
             elif days_since == 1:
                 days_since_activity = "1 day ago"
             else:
