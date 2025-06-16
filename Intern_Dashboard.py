@@ -1052,12 +1052,18 @@ def main():
         users_df = pd.DataFrame(user_data)
         
         # Display table with enhanced formatting
+        users_df = users_df[[
+            "Name", "README", "Username", "Status", "Commits", "Merge Requests",
+            "Issues", "Total Activity", "Projects", "Last Activity", "Days Since Activity"
+        ]]
+
         st.dataframe(
             users_df,
             use_container_width=True,
             hide_index=True,
             column_config={
                 "Name": st.column_config.TextColumn("👤 Name", width="medium"),
+                "README": st.column_config.TextColumn("📄 README", width="small"),
                 "Username": st.column_config.TextColumn("🔗 Username", width="medium"),
                 "Status": st.column_config.TextColumn("📊 Status", width="small"),
                 "Commits": st.column_config.NumberColumn("💻 Commits", width="small"),
@@ -1069,6 +1075,7 @@ def main():
                 "Days Since Activity": st.column_config.TextColumn("📅 Days Ago", width="medium")
             }
         )
+
         
         # Download button for user data
         users_csv = users_df.to_csv(index=False)
