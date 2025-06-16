@@ -1051,20 +1051,24 @@ def main():
     if user_data:
         users_df = pd.DataFrame(user_data)
         
-        # Display table with enhanced formatting
-        users_df = users_df[[
-            "Name", "README", "Username", "Status", "Commits", "Merge Requests",
-            "Issues", "Total Activity", "Projects", "Last Activity", "Days Since Activity"
-        ]]
+        # Create a new column with clickable links while keeping original username
+        users_df["Username"] = users_df["Username"].apply(
+        lambda x: f"{GITLAB_URL}/{x}"
+    )
+    
 
+        # Display table with enhanced formatting
         st.dataframe(
             users_df,
             use_container_width=True,
             hide_index=True,
             column_config={
                 "Name": st.column_config.TextColumn("👤 Name", width="medium"),
-                "README": st.column_config.TextColumn("📄 README", width="small"),
-                "Username": st.column_config.TextColumn("🔗 Username", width="medium"),
+                 "Username": st.column_config.LinkColumn(
+                "🌐 GitLab Profile", 
+                width="medium",
+                display_text=f"{GITLAB_URL}/(.*)"
+            ),
                 "Status": st.column_config.TextColumn("📊 Status", width="small"),
                 "Commits": st.column_config.NumberColumn("💻 Commits", width="small"),
                 "Merge Requests": st.column_config.NumberColumn("🔀 MRs", width="small"),
@@ -1073,9 +1077,8 @@ def main():
                 "Projects": st.column_config.NumberColumn("🗂️ Projects", width="small"),
                 "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
                 "Days Since Activity": st.column_config.TextColumn("📅 Days Ago", width="medium")
-            }
+            },
         )
-
         
         # Download button for user data
         users_csv = users_df.to_csv(index=False)
