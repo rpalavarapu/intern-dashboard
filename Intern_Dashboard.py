@@ -1097,7 +1097,7 @@ def main():
             "Issues": stats["issues"],
             "Total Activity": total_activity,
             "Projects": len(stats["projects"]),
-            "Last Activity": last_activity_str,
+            # "Last Activity": last_activity_str,
             "Days Since Activity": days_since_activity
         })
     
@@ -1166,7 +1166,7 @@ def main():
                 "Issues": st.column_config.NumberColumn("🐛 Issues", width="small"),
                 "Total Activity": st.column_config.NumberColumn("⚡ Total", width="small"),
                 "Projects": st.column_config.NumberColumn("🗂️ Projects", width="small"),
-                "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
+                # "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
                 "Days Since Activity": st.column_config.TextColumn("📅 Days Ago", width="medium")
             },
         )
