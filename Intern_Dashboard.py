@@ -14,6 +14,7 @@ from urllib.parse import quote
 import json
 import os
 import pytz
+from utils.validate_gitlab_token import validate_gitlab_token
 
 # Timezone configuration for IST
 LOCAL_TIMEZONE = pytz.timezone('Asia/Kolkata')  # IST - Indian Standard Time
@@ -116,6 +117,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # Header
 st.markdown("""
 <div class="main-header">
@@ -132,11 +134,74 @@ if 'start_time' not in st.session_state:
 if 'gitlab_token' not in st.session_state:
     st.session_state.gitlab_token = ""
 
+if 'token_validated' not in st.session_state:
+    st.session_state.token_validated = False
+
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = None
+
 if 'projects_cache' not in st.session_state:
     st.session_state.projects_cache = None
 
 if 'members_cache' not in st.session_state:
     st.session_state.members_cache = None
+
+# Token Management Section
+st.markdown("---")
+if not st.session_state.get('token_validated', False):
+    st.markdown("## 🔐 GitLab Authentication Required")
+    st.info("Please enter your personal GitLab access token to access the dashboard.")
+    
+    with st.form("token_form"):
+        gitlab_token = st.text_input(
+            "GitLab Access Token", 
+            type="password", 
+            placeholder="glpat-xxxxxxxxxxxxxxxxxxxx",
+            help="Enter your GitLab personal access token with 'read_api' scope"
+        )
+        submitted = st.form_submit_button("🚀 Connect to GitLab")
+        
+        if submitted and gitlab_token:
+            # Validate the token
+            
+            with st.spinner("🔍 Validating GitLab token..."):
+                validation_result = validate_gitlab_token(gitlab_token)
+                
+            if validation_result["success"]:
+                st.session_state.gitlab_token = gitlab_token
+                st.session_state.token_validated = True
+                st.session_state.user_info = validation_result["user_info"]
+                st.success(f"✅ Successfully authenticated as: {validation_result['user_info']['name']}")
+                st.rerun()
+            else:
+                st.error(f"❌ Authentication failed: {validation_result['error']}")
+                st.info("Please check your token and ensure it has 'read_api' scope.")
+    
+    # Instructions for creating a token
+    with st.expander("ℹ️ How to create a GitLab Access Token"):
+        st.markdown(f"""
+        1. Go to [{GITLAB_URL}/-/profile/personal_access_tokens]({GITLAB_URL}/-/profile/personal_access_tokens)
+        2. Click "Add new token"
+        3. Enter a name for your token
+        4. Select expiration date
+        5. Check the **read_api** scope
+        6. Click "Create personal access token"
+        7. Copy the token and paste it above
+        """)
+    
+    st.stop()  # Stop execution until token is provided
+
+# Show authenticated user info in sidebar if token is validated
+if st.session_state.get('token_validated', False) and st.session_state.get('user_info'):
+    st.sidebar.success(f"✅ Authenticated as: {st.session_state.user_info['name']}")
+    st.sidebar.info(f"Username: @{st.session_state.user_info['username']}")
+    
+    if st.sidebar.button("🔄 Change Token"):
+        st.session_state.gitlab_token = ""
+        st.session_state.token_validated = False
+        st.session_state.user_info = None
+        st.cache_data.clear()
+        st.rerun()
 
 # Debug mode toggle
 debug_mode = st.sidebar.checkbox("🐛 Debug Mode", value=False, help="Show detailed debugging information")
@@ -146,26 +211,26 @@ def get_gitlab_headers():
     """Get GitLab API headers with improved token handling"""
     token = None
     
-    try:
-        # Try Streamlit secrets first
-        if hasattr(st, 'secrets') and "GITLAB_TOKEN" in st.secrets:
-            token = st.secrets["GITLAB_TOKEN"]
-    except Exception as e:
-        if debug_mode:
-            st.write(f"Secrets access error: {e}")
-    
-    # Try environment variable
-    if not token:
-        token = os.getenv("GITLAB_TOKEN")
-    
-    # Try session state
-    if not token and st.session_state.gitlab_token:
+    # Primary source: session state (user-provided token)
+    if st.session_state.get('gitlab_token'):
         token = st.session_state.gitlab_token
+    else:
+        # Fallback to secrets/environment (for development)
+        try:
+            if hasattr(st, 'secrets') and "GITLAB_TOKEN" in st.secrets:
+                token = st.secrets["GITLAB_TOKEN"]
+        except Exception as e:
+            if debug_mode:
+                st.write(f"Secrets access error: {e}")
+        
+        # Try environment variable as last resort
+        if not token:
+            token = os.getenv("GITLAB_TOKEN")
     
     if not token:
         return None
     
-    # Validate token format
+    # Validate token format for user guidance
     if not token.startswith(('glpat-', 'gloas-', 'gldt-')) and len(token) < 20:
         if debug_mode:
             st.warning("⚠️ Token format looks incorrect. GitLab tokens usually start with 'glpat-', 'gloas-', or 'gldt-'")
@@ -230,6 +295,25 @@ def safe_api_request(url, headers, params=None, timeout=30, retries=3):
             time.sleep(1)
     
     return {"success": False, "error": "Max retries exceeded"}
+
+def validate_gitlab_token(token):
+    """Validate GitLab token by making a test API call"""
+    headers = {"PRIVATE-TOKEN": token, "Content-Type": "application/json"}
+    
+    try:
+        result = safe_api_request(f"{GITLAB_URL}/api/v4/user", headers, timeout=10)
+        
+        if result["success"]:
+            user_info = result["data"]
+            return {
+                "success": True, 
+                "user_info": user_info,
+                "message": f"Authenticated as {user_info.get('name', 'Unknown')}"
+            }
+        else:
+            return {"success": False, "error": result["error"]}
+    except Exception as e:
+        return {"success": False, "error": f"Token validation failed: {str(e)}"}
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_group_members(group_id):
@@ -568,6 +652,7 @@ st.sidebar.markdown("---")
 
 # Action buttons
 if st.sidebar.button("🔄 Refresh Data", type="primary"):
+    # Clear caches but keep token
     st.cache_data.clear()
     st.session_state.projects_cache = None
     st.session_state.members_cache = None
@@ -581,11 +666,13 @@ if st.sidebar.button("🧪 Test API Connection"):
         if test_result["success"]:
             user_info = test_result["data"]
             st.sidebar.success(f"✅ Connected as: {user_info.get('name', 'Unknown')}")
-            st.sidebar.info(f"Username: {user_info.get('username', 'Unknown')}")
+            st.sidebar.info(f"Username: @{user_info.get('username', 'Unknown')}")
+            st.sidebar.info(f"User ID: {user_info.get('id', 'Unknown')}")
         else:
             st.sidebar.error(f"❌ API connection failed: {test_result['error']}")
+            st.sidebar.warning("Consider refreshing your token if this persists.")
     else:
-        st.sidebar.error("❌ No GitLab token provided")
+        st.sidebar.error("❌ No GitLab token available")
 
 # Main application logic
 def main():
@@ -597,6 +684,7 @@ def main():
         st.code("1. Set environment variable: export GITLAB_TOKEN=your_token")
         st.code("2. Create .streamlit/secrets.toml with: GITLAB_TOKEN = 'your_token'")
         st.code("3. Enter token in the sidebar")
+        st.error("⚠️ Authentication error - please refresh the page")
         return
     
     since_date = datetime.now() - timedelta(days=days)
