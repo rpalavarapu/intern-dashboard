@@ -21,7 +21,6 @@ LOCAL_TIMEZONE = pytz.timezone('Asia/Kolkata')  # IST - Indian Standard Time
 
 # Configuration
 GITLAB_URL = "https://code.swecha.org"
-GROUP_ID = "69994"
 
 # Enhanced styling
 st.set_page_config(
@@ -314,6 +313,25 @@ def validate_gitlab_token(token):
             return {"success": False, "error": result["error"]}
     except Exception as e:
         return {"success": False, "error": f"Token validation failed: {str(e)}"}
+    
+def validate_group_access(group_id):
+    """Validate if the user has access to the specified group"""
+    headers = get_gitlab_headers()
+    if not headers:
+        return {"success": False, "error": "No valid GitLab token found"}
+    
+    url = f"{GITLAB_URL}/api/v4/groups/{group_id}"
+    result = safe_api_request(url, headers, timeout=10)
+    
+    if result["success"]:
+        group_info = result["data"]
+        return {
+            "success": True, 
+            "group_info": group_info,
+            "message": f"Access confirmed for group: {group_info.get('name', 'Unknown')}"
+        }
+    else:
+        return {"success": False, "error": result["error"]}
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_group_members(group_id):
@@ -354,7 +372,7 @@ def get_group_members(group_id):
         page += 1
         
         # Safety limit
-        if page > 100:
+        if page > 50:
             st.warning("⚠️ Hit page limit for members. Some members might not be loaded.")
             break
     
@@ -402,7 +420,7 @@ def get_all_accessible_projects():
         page += 1
         
         # Safety limit for projects
-        if page > 150:
+        if page > 100:
             st.warning("⚠️ Hit page limit for projects. Some projects might not be loaded.")
             break
     
@@ -626,6 +644,53 @@ def fetch_readme_status(users, name_to_username):
 # Sidebar configuration
 st.sidebar.markdown("## ⚙️ Configuration")
 
+# Group selection
+# Multiple groups support
+group_input_method = st.sidebar.radio(
+    "Group Selection Method",
+    ["Single Group", "Multiple Groups"],
+    help="Choose how to specify groups to analyze"
+)
+
+if group_input_method == "Single Group":
+    group_id = st.sidebar.text_input(
+        "🏢 GitLab Group ID", 
+        value="69994",
+        placeholder="Enter group ID (e.g., 69994)",
+        help="Enter the GitLab group ID you want to analyze"
+    )
+    group_ids = [group_id] if group_id and group_id.isdigit() else []
+else:
+    group_ids_text = st.sidebar.text_area(
+        "🏢 GitLab Group IDs",
+        value="69994",
+        placeholder="Enter group IDs, one per line:\n69994\n12345\n67890",
+        help="Enter multiple group IDs, one per line"
+    )
+    group_ids = [gid.strip() for gid in group_ids_text.split('\n') if gid.strip() and gid.strip().isdigit()]
+
+if not group_ids:
+    st.sidebar.error("Please enter at least one valid numeric group ID")
+    st.stop()
+
+st.sidebar.success(f"Analyzing {len(group_ids)} group(s)")
+
+if not group_id or not group_id.isdigit():
+    st.sidebar.error("Please enter a valid numeric group ID")
+    st.stop()
+
+st.sidebar.success(f"Analyzing group: {group_id}")
+
+# Validate group access
+if st.sidebar.button("🔍 Validate Group Access"):
+    for gid in group_ids:
+        with st.spinner(f"Validating access to group {gid}..."):
+            validation = validate_group_access(gid)
+            if validation["success"]:
+                st.sidebar.success(f"✅ Group {gid}: {validation['group_info']['name']}")
+            else:
+                st.sidebar.error(f"❌ Group {gid}: {validation['error']}")
+
 
 
 # Enhanced sidebar options
@@ -692,26 +757,28 @@ def main():
     st.info(f"📅 Analyzing activities from {since_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}")
     
     # Load group members
-    with st.spinner("🔍 Loading group members..."):
-        members_result = get_group_members(GROUP_ID)
-    
-    if not members_result["success"]:
-        st.error(f"❌ Unable to fetch group members: {members_result['error']}")
-        if debug_mode:
-            st.markdown(f"""
-            <div class="error-info">
-                <h4>Debug Information:</h4>
-                <ul>
-                    <li>GitLab URL: {GITLAB_URL}</li>
-                    <li>Group ID: {GROUP_ID}</li>
-                    <li>Error: {members_result['error']}</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+    # Load members from all groups
+    all_members = []
+    with st.spinner(f"🔍 Loading members from {len(group_ids)} group(s)..."):
+        for gid in group_ids:
+            members_result = get_group_members(gid)
+            if members_result["success"]:
+                all_members.extend(members_result["data"])
+                st.success(f"✅ Found {len(members_result['data'])} members in group {gid}")
+            else:
+                st.error(f"❌ Failed to load group {gid}: {members_result['error']}")
+
+    # Remove duplicates based on user ID
+    seen_users = set()
+    members = []
+    for member in all_members:
+        if member["id"] not in seen_users:
+            members.append(member)
+            seen_users.add(member["id"])
+
+    if not members:
+        st.error("❌ No members found in any of the specified groups")
         return
-    
-    members = members_result["data"]
-    st.success(f"✅ Found {len(members)} group members")
     
     # Load projects if requested
     projects = []
@@ -756,7 +823,7 @@ def main():
         
         # Display projects in a nice format
         project_data = []
-        for project in filtered_projects[:150]:  # Limit display to 100 projects
+        for project in filtered_projects[:100]:  # Limit display to 100 projects
             last_activity = "Never"
             if project.get('last_activity_at'):
                 try:
@@ -813,7 +880,7 @@ def main():
         st.markdown(f"""
         <div class="debug-info">
             <strong>Debug Info:</strong><br>
-            - Group ID: {GROUP_ID}<br>
+            - Group ID: {group_id}<br>
             - GitLab URL: {GITLAB_URL}<br>
             - Members found: {len(members)}<br>
             - Projects found: {len(projects)}<br>
@@ -852,7 +919,7 @@ def main():
         status_text = st.empty()
         
         # Limit the number of projects to analyze to avoid timeout
-        max_projects = min(len(projects), 160)  # Limit to 50 most recent projects
+        max_projects = min(len(projects), 150)  # Limit to 50 most recent projects
         projects_to_analyze = projects[:max_projects]
         
         if len(projects) > max_projects:
