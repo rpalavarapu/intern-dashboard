@@ -354,7 +354,7 @@ def get_group_members(group_id):
         page += 1
         
         # Safety limit
-        if page > 50:
+        if page > 100:
             st.warning("⚠️ Hit page limit for members. Some members might not be loaded.")
             break
     
@@ -402,7 +402,7 @@ def get_all_accessible_projects():
         page += 1
         
         # Safety limit for projects
-        if page > 100:
+        if page > 150:
             st.warning("⚠️ Hit page limit for projects. Some projects might not be loaded.")
             break
     
@@ -756,7 +756,7 @@ def main():
         
         # Display projects in a nice format
         project_data = []
-        for project in filtered_projects[:100]:  # Limit display to 100 projects
+        for project in filtered_projects[:150]:  # Limit display to 100 projects
             last_activity = "Never"
             if project.get('last_activity_at'):
                 try:
@@ -852,7 +852,7 @@ def main():
         status_text = st.empty()
         
         # Limit the number of projects to analyze to avoid timeout
-        max_projects = min(len(projects), 150)  # Limit to 50 most recent projects
+        max_projects = min(len(projects), 160)  # Limit to 50 most recent projects
         projects_to_analyze = projects[:max_projects]
         
         if len(projects) > max_projects:
@@ -1097,7 +1097,7 @@ def main():
             "Issues": stats["issues"],
             "Total Activity": total_activity,
             "Projects": len(stats["projects"]),
-            # "Last Activity": last_activity_str,
+            "Last Activity": last_activity_str,
             "Days Since Activity": days_since_activity
         })
     
@@ -1166,7 +1166,7 @@ def main():
                 "Issues": st.column_config.NumberColumn("🐛 Issues", width="small"),
                 "Total Activity": st.column_config.NumberColumn("⚡ Total", width="small"),
                 "Projects": st.column_config.NumberColumn("🗂️ Projects", width="small"),
-                # "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
+                "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
                 "Days Since Activity": st.column_config.TextColumn("📅 Days Ago", width="medium")
             },
         )
