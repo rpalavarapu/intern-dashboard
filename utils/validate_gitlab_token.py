@@ -16,6 +16,7 @@ import pytz
 
 GITLAB_URL = "https://code.swecha.org"
 
+
 def safe_api_request(url, headers, params=None, timeout=30, retries=3):
     """Make API request with enhanced error handling and retry logic"""
     for attempt in range(retries):
@@ -95,3 +96,4 @@ def validate_gitlab_token(token):
     except Exception as e:
         print(f"💥 Exception during validation: {e}")
         return {"success": False, "error": f"Token validation failed: {str(e)}"}
+    
