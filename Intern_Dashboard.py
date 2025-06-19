@@ -998,7 +998,7 @@ def main():
     # Calculate comprehensive statistics
     total_members = len(user_stats)
     active_members = sum(1 for stats in user_stats.values() 
-                        if (stats["commits"] + stats["merge_requests"] + stats["issues"]) >= activity_threshold)
+                        if (stats["commits"] + stats["merge_requests"] + stats["issues"]) > 0)
     
     total_commits = sum(stats["commits"] for stats in user_stats.values())
     total_mrs = sum(stats["merge_requests"] for stats in user_stats.values())
