@@ -207,34 +207,23 @@ debug_mode = st.sidebar.checkbox("🐛 Debug Mode", value=False, help="Show deta
 
 # API Helper Functions
 def get_gitlab_headers():
-    """Get GitLab API headers with improved token handling"""
-    token = None
+    """Get GitLab API headers using only user-provided token from session state"""
     
-    # Primary source: session state (user-provided token)
-    if st.session_state.get('gitlab_token'):
-        token = st.session_state.gitlab_token
-    else:
-        # Fallback to secrets/environment (for development)
-        try:
-            if hasattr(st, 'secrets') and "GITLAB_TOKEN" in st.secrets:
-                token = st.secrets["GITLAB_TOKEN"]
-        except Exception as e:
-            if debug_mode:
-                st.write(f"Secrets access error: {e}")
-        
-        # Try environment variable as last resort
-        if not token:
-            token = os.getenv("GITLAB_TOKEN")
+    token = st.session_state.get('gitlab_token', None)
     
     if not token:
-        return None
-    
-    # Validate token format for user guidance
-    if not token.startswith(('glpat-', 'gloas-', 'gldt-')) and len(token) < 20:
-        if debug_mode:
-            st.warning("⚠️ Token format looks incorrect. GitLab tokens usually start with 'glpat-', 'gloas-', or 'gldt-'")
-    
-    return {"PRIVATE-TOKEN": token, "Content-Type": "application/json"}
+        st.error("❌ No GitLab token found. Please enter your token in the form above.")
+        st.stop()
+
+    # Optional: Warn if the token format looks suspicious
+    if not token.startswith(('glpat-', 'gloas-', 'gldt-')) or len(token) < 20:
+        st.warning("⚠️ The token format looks incorrect. It should typically start with 'glpat-', 'gloas-', or 'gldt-'.")
+
+    return {
+        "PRIVATE-TOKEN": token,
+        "Content-Type": "application/json"
+    }
+
 
 def safe_api_request(url, headers, params=None, timeout=30, retries=3):
     """Make API request with enhanced error handling and retry logic"""
