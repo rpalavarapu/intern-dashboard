@@ -1,94 +1,119 @@
 
 # Contributing to gitlab-wrapper
 
-🙏 Thank you for your interest in contributing to `gitlab-wrapper`!  
+🙏 Thank you for your interest in contributing to `gitlab-API-wrapper`!  
 This project is built to simplify GitLab automation and developer environment validation for [code.swecha.org](https://code.swecha.org), and we welcome your ideas, feedback, and code.
 
 
 
-## 🧰 Prerequisites
+## 📋 Table of Contents
 
-Before contributing, please make sure you have:
+- [How to Contribute](#how-to-contribute)
+- [Development Setup](#development-setup)
+- [Coding Guidelines](#coding-guidelines)
+- [Pull Request Process](#pull-request-process)
+- [Reporting Issues](#reporting-issues)
+- [Code of Conduct](#code-of-conduct)
 
-- Python 3.8 or later installed  
-- A GitLab account on [code.swecha.org](https://code.swecha.org)  
-- Git installed and configured  
-- A GitLab **Access Token** with `api` scope  
-- Your token stored in a `.env` file:
+---
 
-```env
-ACCESS_TOKEN=your_token_here
-```
+## 💡 How to Contribute
+
+You can contribute in several ways:
+
+- 💻 Add new features (e.g., visualizations, filters)
+- 🐛 Fix bugs or optimize performance
+- 🧪 Write or improve tests
+- 📖 Enhance documentation
+
+---
+
+## ⚙️ Development Setup
+
+1. **Fork and Clone the Repository**
+    ```bash
+    git clone https://code.swecha.org/Soham/internship-dashboard.git
+    cd internship-dashboard
+    ```
+
+2. **Set Up a Virtual Environment**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\\Scripts\\activate
+    ```
+
+3. **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4. **Run the App**
+    ```bash
+    streamlit run Intern_Dashboard.py
+    ```
+
+---
+
+## 🧑‍💻 Coding Guidelines
+
+- Follow Python PEP8 standards.
+- Use `ruff` for linting and formatting:
+    ```bash
+    ruff check .
+    ```
+- Keep functions modular and readable.
+- Reuse components where possible.
+- Avoid hardcoding GitLab tokens or sensitive data.
+
+---
+
+## 🚀 Pull Request Process
+
+1. Create a feature or fix branch:
+    ```bash
+    git checkout -b feature/add-xyz
+    ```
+
+2. Make your changes and test thoroughly.
+
+3. Commit with a clear message:
+    ```bash
+    git commit -m "✨ Added commit size graph by user"
+    ```
+
+4. Push your branch:
+    ```bash
+    git push origin feature/add-xyz
+    ```
+
+5. Open a **Merge Request** at:
+   [https://code.swecha.org/Soham/internship-dashboard/-/merge_requests](https://code.swecha.org/Soham/internship-dashboard/-/merge_requests)
+
+---
+
+## 🐞 Reporting Issues
+
+Please use the [Issues tab](https://code.swecha.org/Soham/internship-dashboard/-/issues) to report:
+
+- Bugs 🐛
+- Feature Requests 🌟
+- Documentation Gaps 📄
+
+Include:
+- What happened?
+- What did you expect?
+- Steps to reproduce
+- Screenshots or logs (if available)
+
+---
+
+## 🤝 Code of Conduct
+
+We expect all contributors to follow our [Code of Conduct](CODE_OF_CONDUCT.md). Be respectful and inclusive.
+
+---
+
+Thanks for helping improve the GitLab API wrapper! 💙  
+Let’s build something amazing together.
 
 
-## 🛠 Project Setup
-
-1. **Fork** this repository from `code.swecha.org/ranjithraj/gitlab-wrapper` 
-
-2. **Clone your fork**:
-
-```bash
-git clone https://code.swecha.org/your-username/gitlab-wrapper.git
-cd gitlab-wrapper
-```
-
-
-3. *(Optional)* **Create and activate a virtual environment**:
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-4. **Install the project dependencies** using `uv`:
-
-```bash
-uv pip install -r requirements.txt
-```
-
-<br>
-
-> 🔁 If `uv` is not installed, install it first:
-
-<br>
-
-
-```bash
-curl -Ls https://astral.sh/uv/install.sh | bash
-```
-
-<br>
-
-> Then add it to your `PATH` (if needed):
-
-<br>
-
-```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-```
-
-<br>
-
-> Then run again:
-
-<br>
-
-```bash
-uv pip install -r requirements.txt
-```
-
-
-<br>
-
-
-### 🧠 Why use `uv` instead of `pip`?
-
-`uv` is a modern Python package manager built in Rust by Astral (the makers of Ruff).  
-It’s a drop-in replacement for pip, pip-tools, and virtualenv — and it's **way faster**.
-
-**Key benefits of `uv`:**
-
-- ⚡ Blazing fast (written in Rust)  
-- 🧹 Handles virtual environments and dependencies in one place  
-- 📦 Safer and reproducible installs (lockfiles like pip-tools)  
-- 🔧 Compatible with existing pip and requirements.txt  
