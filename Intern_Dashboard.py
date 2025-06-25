@@ -653,11 +653,16 @@ group_input_method = st.sidebar.radio(
 )
 
 if group_input_method == "Single Group":
-    group_id = st.sidebar.text_input(
-        "🏢 GitLab Group ID", 
-        value="69994",
-        placeholder="Enter group ID (e.g., 69994)",
-        help="Enter the GitLab group ID you want to analyze"
+    if st.sidebar.button("click for BITS interns"):
+        group_id = "69994"
+    elif st.sidebar.button("Click for ICFAI interns"):
+        group_id = "72165"
+    else:
+        group_id = st.sidebar.text_input(
+            "🏢 GitLab Group ID", 
+            value="69994",
+            placeholder="Enter group ID (e.g., 69994)",
+            help="Enter the GitLab group ID you want to analyze"
     )
     group_ids = [group_id] if group_id and group_id.isdigit() else []
 else:
@@ -998,7 +1003,7 @@ def main():
     # Calculate comprehensive statistics
     total_members = len(user_stats)
     active_members = sum(1 for stats in user_stats.values() 
-                        if (stats["commits"] + stats["merge_requests"] + stats["issues"]) > 0)
+                        if (stats["commits"] + stats["merge_requests"] + stats["issues"]) >= activity_threshold)
     
     total_commits = sum(stats["commits"] for stats in user_stats.values())
     total_mrs = sum(stats["merge_requests"] for stats in user_stats.values())
