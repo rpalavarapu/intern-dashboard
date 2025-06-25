@@ -642,40 +642,23 @@ def fetch_readme_status(users, name_to_username):
 
 
 # Sidebar configuration
-st.sidebar.markdown("## ⚙️ Configuration")
+st.sidebar.markdown("## ⚙️ Group Selection")
 
 # Group selection
-# Multiple groups support
-group_input_method = st.sidebar.radio(
-    "Group Selection Method",
-    ["Single Group", "Multiple Groups"],
-    help="Choose how to specify groups to analyze"
-)
-
-if group_input_method == "Single Group":
-    if st.sidebar.button("click for BITS interns"):
-        group_id = "69994"
-    elif st.sidebar.button("Click for ICFAI interns"):
-        group_id = "72165"
-    else:
-        group_id = st.sidebar.text_input(
-            "🏢 GitLab Group ID", 
-            value="69994",
-            placeholder="Enter group ID (e.g., 69994)",
-            help="Enter the GitLab group ID you want to analyze"
-    )
-    group_ids = [group_id] if group_id and group_id.isdigit() else []
+if st.sidebar.button("click for BITS interns"):
+    group_id = "69994"
+elif st.sidebar.button("Click for ICFAI interns"):
+    group_id = "72165"
 else:
-    group_ids_text = st.sidebar.text_area(
-        "🏢 GitLab Group IDs",
-        value="69994",
-        placeholder="Enter group IDs, one per line:\n69994\n12345\n67890",
-        help="Enter multiple group IDs, one per line"
+    group_id = st.sidebar.text_input(
+        "🏢 GitLab Group ID", 
+        placeholder="Enter group ID (e.g., 69994)",
+        help="Enter the GitLab group ID you want to analyze"
     )
-    group_ids = [gid.strip() for gid in group_ids_text.split('\n') if gid.strip() and gid.strip().isdigit()]
+group_ids = [group_id] if group_id and group_id.isdigit() else []
 
 if not group_ids:
-    st.sidebar.error("Please enter at least one valid numeric group ID")
+    st.sidebar.info("Please enter at least one valid numeric group ID")
     st.stop()
 
 st.sidebar.success(f"Analyzing {len(group_ids)} group(s)")
