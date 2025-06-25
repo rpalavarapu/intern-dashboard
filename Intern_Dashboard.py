@@ -644,18 +644,34 @@ def fetch_readme_status(users, name_to_username):
 # Sidebar configuration
 st.sidebar.markdown("## ⚙️ Group Selection")
 
-# Group selection
-if st.sidebar.button("click for BITS interns"):
-    group_id = "69994"
-elif st.sidebar.button("Click for ICFAI interns"):
-    group_id = "72165" 
+st.session_state.setdefault("group_id", None)
+
+# Sidebar option to choose input method
+group_input_method = st.sidebar.radio("Choose Group Input Method", ["Single Group", "Multiple Groups"])
+
+# Handle group ID input via buttons
+if group_input_method == "Single Group":
+    # Define button callbacks
+    def set_group_69994():
+        st.session_state.group_id = "69994"
+
+    def set_group_72165():
+        st.session_state.group_id = "72165"
+
+    # Sidebar buttons
+    st.sidebar.button("Click For Bits Interns", on_click=set_group_69994)
+    st.sidebar.button("Click For ICFAI Interns", on_click=set_group_72165)
+
+    # Convert to list
+    group_ids = [st.session_state.group_id] if st.session_state.group_id else []
 else:
-    group_id = st.sidebar.text_input(
-        "🏢 GitLab Group ID", 
-        placeholder="Enter group ID (e.g., 69994)",
-        help="Enter the GitLab group ID you want to analyze"
+    group_ids_text = st.sidebar.text_area(
+        "🏢 GitLab Group IDs",
+        value="69994",
+        placeholder="Enter group IDs, one per line:\n69994\n12345\n67890",
+        help="Enter multiple group IDs, one per line"
     )
-group_ids = [group_id] if group_id and group_id.isdigit() else []
+    group_ids = [gid.strip() for gid in group_ids_text.split('\n') if gid.strip() and gid.strip().isdigit()]
 
 if not group_ids:
     st.sidebar.info("Please enter at least one valid numeric group ID")
@@ -663,15 +679,12 @@ if not group_ids:
 
 st.sidebar.success(f"Analyzing {len(group_ids)} group(s)")
 
-if not group_id or not group_id.isdigit():
+if not group_ids:
     st.sidebar.error("Please enter a valid numeric group ID")
     st.stop()
 
-st.sidebar.success(f"Analyzing group: {group_id}")
+st.sidebar.success(f"Analyzing group: {group_ids}")
 
-if st.sidebar.button("🔄 Return To Group Select"):
-    st.stop()
-    st.rerun()
 
 # Validate group access
 if st.sidebar.button("🔍 Validate Group Access"):
