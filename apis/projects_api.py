@@ -109,13 +109,16 @@ def get_all_accessible_projects(debug_mode=False):
 
 def get_project_activity(project_id, project_name, since_date, valid_names,debug_mode=False):
     """Get all activity for a specific project"""
-    stats = defaultdict(lambda: {  
-        "commits": 0,
-        "merge_requests": 0,
-        "issues": 0,
-        "project_names": set(),
-        "last_activity": None
-    })
+    stats = defaultdict(lambda: {
+    "commits": 0,
+    "merge_requests": 0,
+    "issues": 0,
+    
+    "push_events": 0,
+    "project_names": set(),
+    "last_activity": None
+})
+
 
 
     headers = get_gitlab_headers()
@@ -153,7 +156,7 @@ def get_project_activity(project_id, project_name, since_date, valid_names,debug
                 created_at = commit.get("created_at")
                 if created_at:
                     try:
-                        dt = parse_datetime(created_at) 
+                        dt = parse_datetime(created_at)
                         if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
                             stats[author]["last_activity"] = dt
                     except Exception:
@@ -191,10 +194,10 @@ def get_project_activity(project_id, project_name, since_date, valid_names,debug
                     stats[author]["merge_requests"] += 1
                     stats[author]["project_names"].add(project_name)
                 
-                    updated_at = mr.get("updated_at")
+                updated_at = mr.get("updated_at")
                 if updated_at:
                     try:
-                        dt = parse_datetime(updated_at)  
+                        dt = parse_datetime(updated_at)
                         if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
                             stats[author]["last_activity"] = dt
                     except Exception:
@@ -227,7 +230,7 @@ def get_project_activity(project_id, project_name, since_date, valid_names,debug
                     created_at = issue.get("created_at")
                     if created_at:
                         try:
-                            dt = parse_datetime(created_at) 
+                            dt = parse_datetime(created_at)
                             if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
                                 stats[author]["last_activity"] = dt
                         except Exception:
@@ -240,5 +243,65 @@ def get_project_activity(project_id, project_name, since_date, valid_names,debug
     except Exception as e:
         if debug_mode:
             st.write(f"Error processing project {project_name}: {e}")
+
+
+       
+
+
+        # 🔵 GET PUSH EVENTS
+        # 🔵 GET PUSH EVENTS - using safe paginated format
+    # 🔵 GET PUSH EVENTS - Fixed
+    try:
+        events_url = f"{GITLAB_URL}/api/v4/projects/{project_id}/events"
+        events_params = {
+            "action": "pushed",
+            "per_page": 100,
+        }
+
+        page = 1
+        while True:
+            events_params["page"] = page
+            events_result = safe_api_request(events_url, headers, events_params)
+
+            if not events_result["success"]:
+                if debug_mode:
+                    st.write(f"❌ Failed to fetch push events on page {page}")
+                break
+
+            events = events_result["data"]
+            if not events:
+                break
+
+            for event in events:
+                author = event.get("author", {}).get("name", "Unknown")
+                commit_count = event.get("push_data", {}).get("commit_count", 0)
+
+                if debug_mode:
+                    st.write(f"Push event: author={author}, commits={commit_count}, in valid_names={author in valid_names}")
+
+
+                if author in valid_names:
+                    stats[author]["push_events"] += 1
+                    stats[author]["project_names"].add(project_name)
+
+                    created_at = event.get("created_at")
+                    if created_at:
+                        try:
+                            dt = parse_datetime(created_at)
+                            if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
+                                stats[author]["last_activity"] = dt
+                        except Exception:
+                            pass
+
+            if len(events) < 100:
+                break
+            page += 1
+
+    except Exception as e:
+        if debug_mode:
+            st.write(f"Error processing push events for project {project_name}: {e}")
+
+
+
     
     return stats
