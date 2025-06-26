@@ -13,7 +13,7 @@ import re
 from urllib.parse import quote
 import json
 import os
-import pytz
+import pytz 
 from utils.validate_gitlab_token import validate_gitlab_token
 from apis.commits_api import get_gitlab_headers,safe_api_request
 from apis.vscode_validation_api import validate_gitlab_token,validate_group_access  # noqa: F811
@@ -220,7 +220,7 @@ st.sidebar.markdown("## ⚙️ Group Selection")
 st.session_state.setdefault("group_id", None)
 
 # Sidebar option to choose input method
-group_input_method = st.sidebar.radio("Choose Group Input Method", ["Single Group", "Multiple Groups"])
+group_input_method = st.sidebar.radio("Choose Group Input Method", ["Single Group"])
 
 # Handle group ID input via buttons
 if group_input_method == "Single Group":
@@ -525,6 +525,7 @@ def main():
                         user_data["commits"] += stats["commits"]
                         user_data["merge_requests"] += stats["merge_requests"]
                         user_data["issues"] += stats["issues"]
+                        user_data["push events"].update(stats["push_events"])
                         user_data["projects"].update(stats["project_names"])
                         
                         if not user_data["last_activity"] or (stats["last_activity"] and stats["last_activity"] > user_data["last_activity"]):
@@ -551,6 +552,7 @@ def main():
                                 user_data["commits"] += stats["commits"]
                                 user_data["merge_requests"] += stats["merge_requests"]
                                 user_data["issues"] += stats["issues"]
+                                user_data["push_events"] += stats["push_events"]
                                 user_data["projects"].update(stats["project_names"])
                                 
                                 if not user_data["last_activity"] or (stats["last_activity"] and stats["last_activity"] > user_data["last_activity"]):
@@ -587,6 +589,8 @@ def main():
     all_projects = set()
     for stats in user_stats.values():
         all_projects.update(stats["projects"])
+
+    total_activity= total_commits + total_issues + total_mrs + total_push_events
     
     # Show processing summary
     if debug_mode:
@@ -679,7 +683,7 @@ def main():
     """, unsafe_allow_html=True)
     
     with col3:
-        avg_activity = (total_commits + total_mrs + total_issues) / max(active_members, 1)
+        avg_activity = (total_activity) / max(active_members, 1)
         st.markdown(f"""
     <div class="metric-card">
         <h3 style="color: #000000;">⚡ Avg Activity/User</h3>
@@ -690,7 +694,7 @@ def main():
     # Filter users based on activity threshold and show_inactive setting
     filtered_users = {}
     for user, stats in user_stats.items():
-        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"]
+        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"] + stats["push_events"]
         if total_activity >= activity_threshold and (show_inactive or total_activity > 0):
             filtered_users[user] = stats
     
@@ -703,7 +707,7 @@ def main():
     
     user_data = []
     for user, stats in filtered_users.items():
-        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"]
+        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"]+stats["push_events"]
         last_activity_str = "Never"
         days_since_activity = "N/A"
         
@@ -740,8 +744,11 @@ def main():
             "Commits": stats["commits"],
             "Merge Requests": stats["merge_requests"],
             "Issues": stats["issues"],
+            "Push events":stats["push_events"],
             "Total Activity": total_activity,
             "Projects": len(stats["projects"]),
+            "Project names": stats["projects"],
+
             # "Last Activity": last_activity_str,
             "Days Since Activity": days_since_activity
         })
@@ -809,7 +816,9 @@ def main():
                 "Commits": st.column_config.NumberColumn("💻 Commits", width="small"),
                 "Merge Requests": st.column_config.NumberColumn("🔀 MRs", width="small"),
                 "Issues": st.column_config.NumberColumn("🐛 Issues", width="small"),
+                "Push_events": st.column_config.NumberColumn("Push_Events",width="small"),
                 "Total Activity": st.column_config.NumberColumn("⚡ Total", width="small"),
+                
                 "Projects": st.column_config.NumberColumn("🗂️ Projects", width="small"),
                 # "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
                 "Days Since Activity": st.column_config.TextColumn("📅 Days Ago", width="medium")
@@ -854,7 +863,8 @@ def main():
             activity_types = {
                 "Commits": total_commits,
                 "Merge Requests": total_mrs,
-                "Issues": total_issues
+                "Issues": total_issues,
+                "push_events":total_push_events
             }
             
             if sum(activity_types.values()) > 0:
@@ -986,7 +996,7 @@ def main():
                 timeline_data.append({
                     "User": stats["name"],
                     "Last Activity": stats["last_activity"],
-                    "Total Activity": stats["commits"] + stats["merge_requests"] + stats["issues"],
+                    "Total Activity": stats["commits"] + stats["merge_requests"] + stats["issues"]+stats["push_events"],
                     "Activity Type": "Last Active"
                 })
         
