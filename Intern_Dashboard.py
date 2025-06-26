@@ -13,8 +13,14 @@ import re
 from urllib.parse import quote
 import json
 import os
-import pytz
+import pytz 
 from utils.validate_gitlab_token import validate_gitlab_token
+from apis.commits_api import get_gitlab_headers,safe_api_request
+from apis.vscode_validation_api import validate_gitlab_token,validate_group_access  # noqa: F811
+from apis.groups_api import get_group_members
+from apis.projects_api import get_all_accessible_projects
+from apis.projects_api import get_project_activity
+from apis.users_api import check_readme_exists_api,fetch_readme_status
 
 # Timezone configuration for IST
 LOCAL_TIMEZONE = pytz.timezone('Asia/Kolkata')  # IST - Indian Standard Time
@@ -205,461 +211,32 @@ if st.session_state.get('token_validated', False) and st.session_state.get('user
 # Debug mode toggle
 debug_mode = st.sidebar.checkbox("🐛 Debug Mode", value=False, help="Show detailed debugging information")
 
-# API Helper Functions
-def get_gitlab_headers():
-    """Get GitLab API headers with improved token handling"""
-    token = None
-    
-    # Primary source: session state (user-provided token)
-    if st.session_state.get('gitlab_token'):
-        token = st.session_state.gitlab_token
-    else:
-        # Fallback to secrets/environment (for development)
-        try:
-            if hasattr(st, 'secrets') and "GITLAB_TOKEN" in st.secrets:
-                token = st.secrets["GITLAB_TOKEN"]
-        except Exception as e:
-            if debug_mode:
-                st.write(f"Secrets access error: {e}")
-        
-        # Try environment variable as last resort
-        if not token:
-            token = os.getenv("GITLAB_TOKEN")
-    
-    if not token:
-        return None
-    
-    # Validate token format for user guidance
-    if not token.startswith(('glpat-', 'gloas-', 'gldt-')) and len(token) < 20:
-        if debug_mode:
-            st.warning("⚠️ Token format looks incorrect. GitLab tokens usually start with 'glpat-', 'gloas-', or 'gldt-'")
-    
-    return {"PRIVATE-TOKEN": token, "Content-Type": "application/json"}
-
-def safe_api_request(url, headers, params=None, timeout=30, retries=3):
-    """Make API request with enhanced error handling and retry logic"""
-    for attempt in range(retries):
-        try:
-            if debug_mode and attempt == 0:
-                st.write(f"🔗 API Request: {url}")
-                if params:
-                    st.write(f"📋 Parameters: {params}")
-            
-            # Rate limiting
-            time.sleep(0.1)
-            
-            response = requests.get(url, headers=headers, params=params, timeout=timeout)
-            
-            if debug_mode and attempt == 0:
-                st.write(f"📊 Response Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if debug_mode and isinstance(data, list) and attempt == 0:
-                        st.write(f"📝 Returned {len(data)} items")
-                    return {"success": True, "data": data}
-                except json.JSONDecodeError:
-                    return {"success": False, "error": "Invalid JSON response"}
-            
-            elif response.status_code == 404:
-                return {"success": False, "error": "Resource not found (404)"}
-            elif response.status_code == 401:
-                return {"success": False, "error": "Authentication failed (401)"}
-            elif response.status_code == 403:
-                return {"success": False, "error": "Access forbidden (403)"}
-            elif response.status_code == 429:  # Rate limited
-                wait_time = 2 ** attempt  # Exponential backoff
-                if debug_mode:
-                    st.write(f"⏳ Rate limited, waiting {wait_time}s...")
-                time.sleep(wait_time)
-                continue
-            else:
-                if attempt == retries - 1:  # Last attempt
-                    return {"success": False, "error": f"HTTP {response.status_code}: {response.text[:200]}"}
-                time.sleep(1)  # Brief wait before retry
-                continue
-                
-        except requests.exceptions.Timeout:
-            if attempt == retries - 1:
-                return {"success": False, "error": "Request timeout"}
-            time.sleep(2)
-        except requests.exceptions.ConnectionError:
-            if attempt == retries - 1:
-                return {"success": False, "error": "Connection error"}
-            time.sleep(2)
-        except Exception as e:
-            if attempt == retries - 1:
-                return {"success": False, "error": f"Request failed: {str(e)}"}
-            time.sleep(1)
-    
-    return {"success": False, "error": "Max retries exceeded"}
-
-def validate_gitlab_token(token):
-    """Validate GitLab token by making a test API call"""
-    headers = {"PRIVATE-TOKEN": token, "Content-Type": "application/json"}
-    
-    try:
-        result = safe_api_request(f"{GITLAB_URL}/api/v4/user", headers, timeout=10)
-        
-        if result["success"]:
-            user_info = result["data"]
-            return {
-                "success": True, 
-                "user_info": user_info,
-                "message": f"Authenticated as {user_info.get('name', 'Unknown')}"
-            }
-        else:
-            return {"success": False, "error": result["error"]}
-    except Exception as e:
-        return {"success": False, "error": f"Token validation failed: {str(e)}"}
-    
-def validate_group_access(group_id):
-    """Validate if the user has access to the specified group"""
-    headers = get_gitlab_headers()
-    if not headers:
-        return {"success": False, "error": "No valid GitLab token found"}
-    
-    url = f"{GITLAB_URL}/api/v4/groups/{group_id}"
-    result = safe_api_request(url, headers, timeout=10)
-    
-    if result["success"]:
-        group_info = result["data"]
-        return {
-            "success": True, 
-            "group_info": group_info,
-            "message": f"Access confirmed for group: {group_info.get('name', 'Unknown')}"
-        }
-    else:
-        return {"success": False, "error": result["error"]}
-
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_group_members(group_id):
-    """Fetch all members from a GitLab group with improved error handling"""
-    headers = get_gitlab_headers()
-    if not headers:
-        return {"success": False, "error": "No valid GitLab token found"}
-    
-    if debug_mode:
-        st.write(f"🔍 Fetching members for group ID: {group_id}")
-    
-    members = []
-    page = 1
-    per_page = 100
-    
-    while True:
-        url = f"{GITLAB_URL}/api/v4/groups/{group_id}/members/all"
-        params = {"page": page, "per_page": per_page}
-        
-        result = safe_api_request(url, headers, params)
-        
-        if not result["success"]:
-            return result
-        
-        response = result["data"]
-        
-        if not isinstance(response, list):
-            return {"success": False, "error": f"Unexpected response format. Expected list, got {type(response)}"}
-            
-        members.extend(response)
-        
-        if debug_mode:
-            st.write(f"📄 Page {page}: Found {len(response)} members")
-        
-        if len(response) < per_page:
-            break
-            
-        page += 1
-        
-        # Safety limit
-        if page > 50:
-            st.warning("⚠️ Hit page limit for members. Some members might not be loaded.")
-            break
-    
-    if debug_mode:
-        st.write(f"✅ Total members loaded: {len(members)}")
-    
-    return {"success": True, "data": members}
-
-@st.cache_data(ttl=300)
-def get_all_accessible_projects():
-    """Get all accessible projects for the user with improved error handling"""
-    headers = get_gitlab_headers()
-    if not headers:
-        return {"success": False, "error": "No valid GitLab token found"}
-    
-    projects = []
-    page = 1
-    per_page = 100
-    
-    while True:
-        url = f"{GITLAB_URL}/api/v4/projects"
-        params = {
-            "membership": "true",
-            "simple": "true", 
-            "per_page": per_page,
-            "page": page,
-            "order_by": "last_activity_at",
-            "sort": "desc"
-        }
-        
-        result = safe_api_request(url, headers, params)
-        
-        if not result["success"]:
-            return result
-            
-        response = result["data"]
-        projects.extend(response)
-        
-        if debug_mode:
-            st.write(f"📄 Projects page {page}: Found {len(response)} projects")
-        
-        if len(response) < per_page:
-            break
-            
-        page += 1
-        
-        # Safety limit for projects
-        if page > 100:
-            st.warning("⚠️ Hit page limit for projects. Some projects might not be loaded.")
-            break
-    
-    return {"success": True, "data": projects}
-
-def get_project_activity(project_id, project_name, since_date, valid_names):
-    """Get all activity for a specific project"""
-    stats = defaultdict(lambda: {
-        "commits": 0,
-        "merge_requests": 0,
-        "issues": 0,
-        "project_names": set(),
-        "last_activity": None
-    })
-
-
-    headers = get_gitlab_headers()
-    if not headers:
-        return stats
-
-    try:
-    # Get commits from ALL branches
-        commits_url = f"{GITLAB_URL}/api/v4/projects/{project_id}/repository/commits"   
-        commits_params = {
-        "since": since_date.isoformat(), 
-        "per_page": 100,
-        "all": "true"  # This ensures we get commits from all branches
-    }
-    
-    # Handle pagination for commits
-        page = 1
-        while True:
-            commits_params["page"] = page
-            commits_result = safe_api_request(commits_url, headers, commits_params)
-        
-            if not commits_result["success"]:
-                break
-            
-            commits = commits_result["data"]
-            if not commits:  # No more data
-                break
-            
-            for commit in commits:
-                author = commit.get("author_name", "Unknown")
-                if author in valid_names:
-                    stats[author]["commits"] += 1
-                    stats[author]["project_names"].add(project_name)
-                
-                created_at = commit.get("created_at")
-                if created_at:
-                    try:
-                        dt = parse_datetime(created_at)
-                        if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
-                            stats[author]["last_activity"] = dt
-                    except Exception:
-                        pass
-        
-        # Check if we've reached the last page
-            if len(commits) < 100:  # Less than per_page means last page
-                break
-            page += 1
-    
-    # Get merge requests with pagination
-        mrs_url = f"{GITLAB_URL}/api/v4/projects/{project_id}/merge_requests"
-        mrs_params = {
-        "updated_after": since_date.isoformat(), 
-        "per_page": 100, 
-        "state": "all"
-    }
-    
-        page = 1
-        while True:
-            mrs_params["page"] = page
-            mrs_result = safe_api_request(mrs_url, headers, mrs_params)
-        
-            if not mrs_result["success"]:
-                break
-            
-            mrs = mrs_result["data"]
-            if not mrs:  # No more data
-                break
-            
-            for mr in mrs:
-                author_info = mr.get("author", {})
-                author = author_info.get("name", "Unknown")
-                if author in valid_names:
-                    stats[author]["merge_requests"] += 1
-                    stats[author]["project_names"].add(project_name)
-                
-                    updated_at = mr.get("updated_at")
-                if updated_at:
-                    try:
-                        dt = parse_datetime(updated_at)
-                        if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
-                            stats[author]["last_activity"] = dt
-                    except Exception:
-                        pass
-        
-        # Check if we've reached the last page
-            if len(mrs) < 100:  # Less than per_page means last page
-                break
-            page += 1
-
-    except Exception as e:
-        if debug_mode:
-            st.write(f"Error processing commits for project {project_name}: {e}")
-    
-    # Get issues - MOVED OUTSIDE commits try block
-    try:
-        issues_url = f"{GITLAB_URL}/api/v4/projects/{project_id}/issues"
-        issues_params = {"created_after": since_date.isoformat(), "per_page": 100, "state": "all"}
-        issues_result = safe_api_request(issues_url, headers, issues_params)
-        
-        if issues_result["success"]:
-            issues = issues_result["data"]
-            for issue in issues or []:
-                author_info = issue.get("author", {})
-                author = author_info.get("name", "Unknown")
-                if author in valid_names:
-                    stats[author]["issues"] += 1
-                    stats[author]["project_names"].add(project_name)
-                    
-                    created_at = issue.get("created_at")
-                    if created_at:
-                        try:
-                            dt = parse_datetime(created_at)
-                            if not stats[author]["last_activity"] or dt > stats[author]["last_activity"]:
-                                stats[author]["last_activity"] = dt
-                        except Exception:
-                            pass
-    
-    except Exception as e:
-        if debug_mode:
-            st.write(f"Error processing issues for project {project_name}: {e}")
-    
-    except Exception as e:
-        if debug_mode:
-            st.write(f"Error processing project {project_name}: {e}")
-    
-    return stats
-
-def check_readme_exists_api(username):
-    """Check if user has a README in their profile repository"""
-    headers = get_gitlab_headers()
-    if not headers:
-        return False
-    
-    try:
-        # List of possible README file names and branches to check
-        readme_files = ["README.md", "readme.md", "README.MD", "README.rst", "README.txt", "README"]
-        branches = ["main", "master"]
-        
-        for readme_file in readme_files:
-            for branch in branches:
-                # Check for README in user's profile repository (username/username)
-                url = f"{GITLAB_URL}/api/v4/projects/{quote(username + '/' + username, safe='')}/repository/files/{quote(readme_file, safe='')}"
-                params = {"ref": branch}
-                
-                result = safe_api_request(url, headers, params, timeout=10)
-                if result["success"]:
-                    if debug_mode:
-                        st.write(f"✅ Found {readme_file} in {branch} branch for {username}")
-                    return True
-        
-        if debug_mode:
-            st.write(f"❌ No README found for {username}")
-        return False
-        
-    except Exception as e:
-        if debug_mode:
-            st.write(f"Error checking README for {username}: {e}")
-        return False
-
-def fetch_readme_status(users, name_to_username):
-    """Fetch README status for multiple users in parallel"""
-    statuses = {}
-    
-    # Check which users have valid username mappings
-    valid_users = []
-    for user in users:
-        username = name_to_username.get(user)
-        if username:
-            valid_users.append((user, username))
-        else:
-            statuses[user] = "❌ (no username)"
-            if debug_mode:
-                st.write(f"⚠️ No username mapping found for: {user}")
-    
-    if debug_mode:
-        st.write(f"📊 README Check: {len(valid_users)} users have valid usernames out of {len(users)} total")
-    
-    # Process valid users
-    with ThreadPoolExecutor(max_workers=6) as executor:  # Reduced workers to avoid rate limiting
-        futures = {}
-        for user, username in valid_users:
-            futures[executor.submit(check_readme_exists_api, username)] = (user, username)
-        
-        completed = 0
-        total = len(futures)
-        
-        for future in as_completed(futures):
-            user, username = futures[future]
-            try:
-                result = future.result()
-                statuses[user] = "✅" if result else "❌"
-                if debug_mode:
-                    st.write(f"README check for {user} ({username}): {'✅' if result else '❌'}")
-            except Exception as e:
-                statuses[user] = "❌ (error)"
-                if debug_mode:
-                    st.write(f"Error checking README for {user} ({username}): {e}")
-            
-            completed += 1
-            if debug_mode and completed % 10 == 0:  # Show progress every 10 completions
-                st.write(f"README check progress: {completed}/{total}")
-    
-    return statuses
 
 
 
 # Sidebar configuration
-st.sidebar.markdown("## ⚙️ Configuration")
+st.sidebar.markdown("## ⚙️ Group Selection")
 
-# Group selection
-# Multiple groups support
-group_input_method = st.sidebar.radio(
-    "Group Selection Method",
-    ["Single Group", "Multiple Groups"],
-    help="Choose how to specify groups to analyze"
-)
+st.session_state.setdefault("group_id", None)
 
+# Sidebar option to choose input method
+group_input_method = st.sidebar.radio("Choose Group Input Method", ["Single Group"])
+
+# Handle group ID input via buttons
 if group_input_method == "Single Group":
-    group_id = st.sidebar.text_input(
-        "🏢 GitLab Group ID", 
-        value="69994",
-        placeholder="Enter group ID (e.g., 69994)",
-        help="Enter the GitLab group ID you want to analyze"
-    )
-    group_ids = [group_id] if group_id and group_id.isdigit() else []
+    # Define button callbacks
+    def set_group_69994():
+        st.session_state.group_id = "69994"
+
+    def set_group_72165():
+        st.session_state.group_id = "72165"
+
+    # Sidebar buttons
+    st.sidebar.button("Click For Bits Interns", on_click=set_group_69994)
+    st.sidebar.button("Click For ICFAI Interns", on_click=set_group_72165)
+
+    # Convert to list
+    group_ids = [st.session_state.group_id] if st.session_state.group_id else []
 else:
     group_ids_text = st.sidebar.text_area(
         "🏢 GitLab Group IDs",
@@ -670,16 +247,17 @@ else:
     group_ids = [gid.strip() for gid in group_ids_text.split('\n') if gid.strip() and gid.strip().isdigit()]
 
 if not group_ids:
-    st.sidebar.error("Please enter at least one valid numeric group ID")
+    st.sidebar.info("Please enter at least one valid numeric group ID")
     st.stop()
 
 st.sidebar.success(f"Analyzing {len(group_ids)} group(s)")
 
-if not group_id or not group_id.isdigit():
+if not group_ids:
     st.sidebar.error("Please enter a valid numeric group ID")
     st.stop()
 
-st.sidebar.success(f"Analyzing group: {group_id}")
+st.sidebar.success(f"Analyzing group: {group_ids}")
+
 
 # Validate group access
 if st.sidebar.button("🔍 Validate Group Access"):
@@ -888,7 +466,7 @@ def main():
             - Since date: {since_date.isoformat()}<br>
             - Using project-based analysis: {use_project_based}
         </div>
-        """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)  # noqa: F821
     
     # Initialize user stats with all group members
     user_stats = {}
@@ -947,6 +525,7 @@ def main():
                         user_data["commits"] += stats["commits"]
                         user_data["merge_requests"] += stats["merge_requests"]
                         user_data["issues"] += stats["issues"]
+                        user_data["push events"].update(stats["push_events"])
                         user_data["projects"].update(stats["project_names"])
                         
                         if not user_data["last_activity"] or (stats["last_activity"] and stats["last_activity"] > user_data["last_activity"]):
@@ -973,6 +552,7 @@ def main():
                                 user_data["commits"] += stats["commits"]
                                 user_data["merge_requests"] += stats["merge_requests"]
                                 user_data["issues"] += stats["issues"]
+                                user_data["push_events"] += stats["push_events"]
                                 user_data["projects"].update(stats["project_names"])
                                 
                                 if not user_data["last_activity"] or (stats["last_activity"] and stats["last_activity"] > user_data["last_activity"]):
@@ -998,7 +578,7 @@ def main():
     # Calculate comprehensive statistics
     total_members = len(user_stats)
     active_members = sum(1 for stats in user_stats.values() 
-                        if (stats["commits"] + stats["merge_requests"] + stats["issues"]) > 0)
+                        if (stats["commits"] + stats["merge_requests"] + stats["issues"]) >= activity_threshold)
     
     total_commits = sum(stats["commits"] for stats in user_stats.values())
     total_mrs = sum(stats["merge_requests"] for stats in user_stats.values())
@@ -1009,6 +589,8 @@ def main():
     all_projects = set()
     for stats in user_stats.values():
         all_projects.update(stats["projects"])
+
+    total_activity= total_commits + total_issues + total_mrs + total_push_events
     
     # Show processing summary
     if debug_mode:
@@ -1101,7 +683,7 @@ def main():
     """, unsafe_allow_html=True)
     
     with col3:
-        avg_activity = (total_commits + total_mrs + total_issues) / max(active_members, 1)
+        avg_activity = (total_activity) / max(active_members, 1)
         st.markdown(f"""
     <div class="metric-card">
         <h3 style="color: #000000;">⚡ Avg Activity/User</h3>
@@ -1112,7 +694,7 @@ def main():
     # Filter users based on activity threshold and show_inactive setting
     filtered_users = {}
     for user, stats in user_stats.items():
-        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"]
+        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"] + stats["push_events"]
         if total_activity >= activity_threshold and (show_inactive or total_activity > 0):
             filtered_users[user] = stats
     
@@ -1125,7 +707,7 @@ def main():
     
     user_data = []
     for user, stats in filtered_users.items():
-        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"]
+        total_activity = stats["commits"] + stats["merge_requests"] + stats["issues"]+stats["push_events"]
         last_activity_str = "Never"
         days_since_activity = "N/A"
         
@@ -1162,8 +744,11 @@ def main():
             "Commits": stats["commits"],
             "Merge Requests": stats["merge_requests"],
             "Issues": stats["issues"],
+            "Push events":stats["push_events"],
             "Total Activity": total_activity,
             "Projects": len(stats["projects"]),
+            "Project names": stats["projects"],
+
             # "Last Activity": last_activity_str,
             "Days Since Activity": days_since_activity
         })
@@ -1231,7 +816,9 @@ def main():
                 "Commits": st.column_config.NumberColumn("💻 Commits", width="small"),
                 "Merge Requests": st.column_config.NumberColumn("🔀 MRs", width="small"),
                 "Issues": st.column_config.NumberColumn("🐛 Issues", width="small"),
+                "Push_events": st.column_config.NumberColumn("Push_Events",width="small"),
                 "Total Activity": st.column_config.NumberColumn("⚡ Total", width="small"),
+                
                 "Projects": st.column_config.NumberColumn("🗂️ Projects", width="small"),
                 # "Last Activity": st.column_config.TextColumn("🕒 Last Activity", width="medium"),
                 "Days Since Activity": st.column_config.TextColumn("📅 Days Ago", width="medium")
@@ -1276,7 +863,8 @@ def main():
             activity_types = {
                 "Commits": total_commits,
                 "Merge Requests": total_mrs,
-                "Issues": total_issues
+                "Issues": total_issues,
+                "push_events":total_push_events
             }
             
             if sum(activity_types.values()) > 0:
@@ -1408,7 +996,7 @@ def main():
                 timeline_data.append({
                     "User": stats["name"],
                     "Last Activity": stats["last_activity"],
-                    "Total Activity": stats["commits"] + stats["merge_requests"] + stats["issues"],
+                    "Total Activity": stats["commits"] + stats["merge_requests"] + stats["issues"]+stats["push_events"],
                     "Activity Type": "Last Active"
                 })
         
@@ -1470,3 +1058,4 @@ def main():
 # Run the main application
 if __name__ == "__main__":
     main()
+
